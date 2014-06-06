@@ -1,0 +1,130 @@
+module FP_Add(a,b,p);
+	input [31:0] a,b;
+	output [31:0] p;
+	parameter bias = 8'd127;
+	//`include "FF1.v" 
+	
+	
+//--inputs----------------------------------------------------------------------//
+	wire [22:0] am, bm; 	 //input mantissa
+	wire [7:0] ae,be;       // input exponent
+	assign am = a[22:0];
+	assign bm = b[22:0];
+	assign ae = a[30:23];
+	assign be = b[30:23];
+	
+//--outputs----------------------------------------------------------------------//
+	reg [22:0] pm;		 	 //output mantissa
+	reg [7:0] pe;			 //output exponent
+	reg ps;
+	assign p[31:0] = {ps,pe,pm};
+	//assign p[31] = a[31]^b[31];
+	
+//--temp variables---------------------------------------------------------------//
+  
+	reg agtb;
+	reg [7:0] ge, le, de;         
+  reg [23:0] gm, lm, alm,sm;
+  reg [7:0] FFone;               //location of most significant 1       
+  reg [24:0] nm;	             //alligned mantissa sum, and new shifted mantissa
+  reg rnd, ovf, ds;                       //round indicator
+    
+    
+//--Combinational Logic----------------------------------------------------------//
+    always@(a,b,ae,be,am,bm)begin
+        agtb = (ae >= be);             //if ae > be, agtb =1, else agtb = 0
+        ps = agtb ? a[31] : b[31];     //assign sign bit
+        ds = a[31]^b[31];               //if ds = 1, signs are different
+        ge = agtb ? ae : be;           //assign greater exp
+        le = agtb ? be : ae;           //assign smaller exp
+        de = ge - le;                  //assign difference between exponents
+        gm = agtb ? {1'b1,am} : {1'b1,bm};           //assign greater mantissa
+        lm = agtb ? {1'b1,bm} : {1'b1,am};           //assign smaller mantissa
+        alm = lm >> de;                //alligned mantissa with lesser exponentge = ag
+        case ({ps,ds})
+          2'b00:  begin // (+L) + S
+                    sm = gm + alm;
+                    ovf = sm[23]^gm[23]^alm[23];
+                    //$monitor("Case 00");
+                end
+          2'b01:  begin //(+L) + (-S)
+                    sm = gm - alm;
+                    ovf = sm[23]^gm[23]^(~alm[23]);
+                    //$monitor("Case 01");
+                end
+          2'b10:  begin //(-L) + (-S)
+                    sm = gm + alm;
+                    ovf = sm[23]^gm[23]^alm[23];
+                    //$monitor("Case 10");
+                end
+          2'b11:  begin //(-L) + (S)
+                    sm = gm - alm;
+                    ovf = sm[23]^gm[23]^(~alm[23]);
+                    //$monitor("Case 11");
+                end 
+        endcase
+        /*if (ps) begin
+          sm =  gm-alm;
+          ovf = sm[23]^gm[23]^(~alm[23]);
+        end
+        else begin
+          sm =  gm+alm;
+          ovf = sm[23]^gm[23]^alm[23]; 
+        end*/
+        //pm = sm << FFone;    
+        //pe = ge - FFone;
+        
+    end
+    
+
+    //always@(sm,ge,nm,ps,ovf)
+    always@(*) begin
+        //rnd = sm[0];
+        FFone = 1;
+        if (ovf) begin
+            rnd = sm[0];
+            nm = {ovf,sm};
+            pm = nm[22:0] + rnd;
+            pe = ge;  //pe=ge-1
+        end  //end if
+        else begin
+            casex({ovf,sm})	// synopsys full_case parallel_case
+   	  	         25'b1????????????????????????: FFone =  1;
+               	25'b01???????????????????????: FFone =  2;
+                25'b001??????????????????????: FFone =  3;
+                25'b0001?????????????????????: FFone =  4;
+                25'b00001????????????????????: FFone =  5;
+                25'b000001???????????????????: FFone =  6;
+                25'b0000001??????????????????: FFone =  7;
+                25'b00000001?????????????????: FFone =  8;
+                25'b000000001????????????????: FFone =  9;
+                25'b0000000001???????????????: FFone =  10;
+                25'b00000000001??????????????: FFone =  11;
+                25'b000000000001?????????????: FFone =  12;
+                25'b0000000000001????????????: FFone =  13;
+                25'b00000000000001???????????: FFone =  14;
+                25'b000000000000001??????????: FFone =  15;
+                25'b0000000000000001?????????: FFone =  16;
+                25'b00000000000000001????????: FFone =  17;
+                25'b000000000000000001???????: FFone =  18;
+                25'b0000000000000000001??????: FFone =  19;
+                25'b00000000000000000001?????: FFone =  20;
+                25'b000000000000000000001????: FFone =  21;
+                25'b0000000000000000000001???: FFone =  22;
+                25'b00000000000000000000001??: FFone =  23;
+                25'b000000000000000000000001?: FFone =  24;
+                25'b0000000000000000000000001: FFone =  25;
+            endcase
+	        rnd = sm[0];
+	        nm = {ovf,sm} << FFone-1;
+          pm = nm[23:1];    
+            //pe = ge - FFone;  
+            pe = ge - FFone + 2;   
+        end  //end else
+        
+        
+        
+    end  //end always
+   
+
+endmodule
