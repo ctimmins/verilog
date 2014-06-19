@@ -51,7 +51,7 @@ module FP_Mul(a,b,p);
         		//increment mantissa if round up was necessary
         		xm = sm + rnd;
         		//Final Shift 
-        		//pm = xm[23] ? xm[22:0] : xm[22:0];
+        		
         		pm = xm[22:0];
         		pe = xm[23] ? pe+1 : pe;
         		
